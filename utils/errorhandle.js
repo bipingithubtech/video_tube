@@ -12,3 +12,5 @@ class apiError extends Error {
     this.statusCode = statusCode;
   }
 }
+
+export { apiError };
