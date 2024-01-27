@@ -11,3 +11,11 @@ const storage = multer.diskStorage({
 
 // Initialize multer with the storage configuration
 export const upload = multer({ storage });
+
+upload.any((req, res, next) => {
+  console.log(
+    "Fields processed:",
+    req.files.map((file) => file.fieldname)
+  );
+  next();
+});

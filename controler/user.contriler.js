@@ -6,7 +6,7 @@ import { Apiresponse } from "../utils/responseapi.js";
 
 const Register = asyncHandler(async (req, res) => {
   const { fullName, email, username, password } = req.body;
-  console.log("email:", email, "fullName:", fullName);
+  console.log("email:", email, "fullName:", fullName, "username", username);
   //  vadidation check
   if (
     [fullName, email, username, password].some((feild) => feild?.trim() == "")
@@ -23,6 +23,7 @@ const Register = asyncHandler(async (req, res) => {
 
   const avatarLocalPath = req.files?.avtar[0]?.path;
   // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  console.log(avatarLocalPath);
 
   if (!avatarLocalPath) {
     throw new apiError(400, "avater files is required");
@@ -46,7 +47,7 @@ const Register = asyncHandler(async (req, res) => {
   }
 
   const user = await User.create({
-    username: username?.toLowerCase(),
+    username: username.toLowerCase(),
     email,
     fullName,
     avtar: avtar.url,
@@ -65,6 +66,69 @@ const Register = asyncHandler(async (req, res) => {
   return res
     .status(201)
     .json(new Apiresponse(200, createdUser, "user registered sucessfully"));
+});
+
+const generateAcessTokenAndRefreshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessTokens = user.generateToken();
+    const refreshTokens = user.generateFreshToken();
+
+    user.refreshToken = refreshTokens;
+    await user.save({ validateBeforeSave: false });
+    return { accessTokens, refreshTokens };
+  } catch {
+    throw new apiError(500, "something went wrong while genetrating token");
+  }
+};
+const login = asyncHandler(async (req, res) => {
+  const { email, username, password } = req.body;
+
+  // check user exixt
+  const alredylogdin = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  if (alredylogdin) {
+    throw new apiError(400, "user is already loged in");
+  }
+
+  // password check
+  const passwordCheck = await alredylogdin.isPasswordCorrect(password);
+
+  if (!passwordCheck) {
+    throw new apiError(401, "invalid password");
+  }
+  // tokens
+  // Generate access and refresh tokens for the user
+
+  const { accessTokens, refreshTokens } =
+    await generateAcessTokenAndRefreshToken(existingUser._id);
+
+  // Find the logged-in user by ID
+  const loggedInUser = await User.findById(existingUser._id).select(
+    "-password -refreshToken"
+  );
+
+  // send to cookies
+  const option = {
+    HttpOnly: true,
+    secure: true,
+  };
+  return res
+    .status(200)
+    .cookie("accessTokens", accessTokens, option)
+    .cookie("refreshTokens", refreshTokens, option)
+    .json(
+      new Apiresponse(
+        {
+          user: loggedInUser,
+          accessTokens,
+          refreshTokens,
+        },
+        "user sucessfuly logedin"
+      )
+    );
 });
 
 export { Register };
